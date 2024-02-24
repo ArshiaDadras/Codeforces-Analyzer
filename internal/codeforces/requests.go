@@ -21,9 +21,11 @@ func SortedParams(url string) string {
 }
 
 func GenerateAPISig(url, secret string) string {
-	SHA512 := sha512.New()
 	rnd := rand.Intn(1000000-100000) + 100000
-	SHA512.Write([]byte(fmt.Sprintf("%d/%s#%s", rnd, url[strings.Index(url, "/api/")+5:], secret)))
+	url = SortedParams(url[strings.Index(url, "/api/")+5:])
+
+	SHA512 := sha512.New()
+	SHA512.Write([]byte(fmt.Sprintf("%d/%s#%s", rnd, url, secret)))
 
 	return fmt.Sprintf("%d%x", rnd, SHA512.Sum(nil))
 }
@@ -33,7 +35,7 @@ func GetRequest(url string) ([]byte, error) {
 	secret := os.Getenv("CF_SECRET_KEY")
 	if public != "" && secret != "" {
 		url += fmt.Sprintf("&apiKey=%s&time=%d", public, time.Now().Unix())
-		url += fmt.Sprintf("&apiSig=%s", GenerateAPISig(SortedParams(url), secret))
+		url += fmt.Sprintf("&apiSig=%s", GenerateAPISig(url, secret))
 	}
 
 	resp, err := http.Get(url)
