@@ -74,6 +74,7 @@ type Contest struct {
 	PreparedBy          string `json:"preparedBy"`
 	WebsiteURL          string `json:"websiteUrl"`
 	Description         string `json:"description"`
+	Difficulty          int    `json:"difficulty"`
 	Kind                string `json:"kind"`
 	IcpcRegion          string `json:"icpcRegion"`
 	Country             string `json:"country"`
@@ -106,6 +107,7 @@ type Problem struct {
 	Points         float64  `json:"points"`
 	Rating         int      `json:"rating"`
 	Tags           []string `json:"tags"`
+	SolvedCount    int      `json:"solvedCount"`
 }
 
 type ProblemStatistics struct {
