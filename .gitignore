@@ -23,5 +23,6 @@ go.work
 # Ignoring .DS_Store in any directory (for Mac users)
 **/.DS_Store
 
-# Ignoring .env file
+# Ignoring .env and db files
 .env
+db.sqlite3
