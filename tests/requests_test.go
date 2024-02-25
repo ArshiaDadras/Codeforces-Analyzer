@@ -32,13 +32,12 @@ func TestGetComments(t *testing.T) {
 }
 
 func TestGetView(t *testing.T) {
-	blogEntry := codeforces.BlogEntry{ID: 62865}
-	view, err := blogEntry.GetView()
+	blogEntry, err := codeforces.GetBlogEntry(62865)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if view.ID != blogEntry.ID {
+	if blogEntry.ID != 62865 {
 		t.Error("BlogEntry ID mismatch")
 	}
 }

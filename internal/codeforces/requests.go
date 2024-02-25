@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 func SortedParams(url string) string {
@@ -82,18 +84,22 @@ func (blogEntry *BlogEntry) GetComments() ([]Comment, error) {
 	return comments, nil
 }
 
-func (blogEntry *BlogEntry) GetView() (BlogEntry, error) {
-	resp, err := GetRequest(fmt.Sprintf("https://codeforces.com/api/blogEntry.view?blogEntryId=%d", blogEntry.ID))
+func GetBlogEntry(blogEntryID int) (BlogEntry, error) {
+	resp, err := GetRequest(fmt.Sprintf("https://codeforces.com/api/blogEntry.view?blogEntryId=%d", blogEntryID))
 	if err != nil {
 		return BlogEntry{}, err
 	}
 
-	blogEntryResult := BlogEntry{}
-	if err = json.Unmarshal(resp, &blogEntryResult); err != nil {
+	blogEntry := BlogEntry{}
+	if err = json.Unmarshal(resp, &blogEntry); err != nil {
 		return BlogEntry{}, err
 	}
 
-	return blogEntryResult, nil
+	if err = blogEntry.GetContents(); err != nil {
+		return BlogEntry{}, err
+	}
+
+	return blogEntry, nil
 }
 
 func (contest *Contest) GetHacks() ([]Hack, error) {
@@ -261,6 +267,28 @@ func GetRecentActions(maxCount int) ([]RecentAction, error) {
 	}
 
 	return actions, nil
+}
+
+func (blogEntry *BlogEntry) GetContents() error {
+	resp, err := http.Get(fmt.Sprintf("https://codeforces.com/blog/entry/%d", blogEntry.ID))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	content, err := doc.Find(".ttypography").First().Html()
+	if err != nil {
+		return err
+	}
+
+	blogEntry.Content = content
+
+	return nil
 }
 
 func (user *User) GetBlogEntries() ([]BlogEntry, error) {
