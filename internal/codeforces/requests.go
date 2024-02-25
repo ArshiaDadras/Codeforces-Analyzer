@@ -34,7 +34,10 @@ func GetRequest(url string) ([]byte, error) {
 	public := os.Getenv("CF_PUBLIC_KEY")
 	secret := os.Getenv("CF_SECRET_KEY")
 	if public != "" && secret != "" {
-		url += fmt.Sprintf("&apiKey=%s&time=%d", public, time.Now().Unix())
+		if url[len(url)-1] != '?' {
+			url += "&"
+		}
+		url += fmt.Sprintf("apiKey=%s&time=%d", public, time.Now().Unix())
 		url += fmt.Sprintf("&apiSig=%s", GenerateAPISig(url, secret))
 	}
 
@@ -188,7 +191,7 @@ func (contest *Contest) GetStatus(from, count int, handle string) ([]Submission,
 	return submissions, nil
 }
 
-func GetProblems(tags []string, problemsetName string) ([]Problem, error) {
+func GetProblems(tags []string, problemsetName string) ([]Problem, []ProblemStatistics, error) {
 	url := "https://codeforces.com/api/problemset.problems?"
 	if len(tags) > 0 {
 		url += fmt.Sprintf("tags=%s", strings.Join(tags, ";"))
@@ -202,21 +205,24 @@ func GetProblems(tags []string, problemsetName string) ([]Problem, error) {
 
 	resp, err := GetRequest(url)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	problems := []Problem{}
-	if err = json.Unmarshal(resp, &problems); err != nil {
-		return nil, err
+	response := struct {
+		Problems          []Problem           `json:"problems"`
+		ProblemStatistics []ProblemStatistics `json:"problemStatistics"`
+	}{}
+	if err = json.Unmarshal(resp, &response); err != nil {
+		return nil, nil, err
 	}
 
-	return problems, nil
+	return response.Problems, response.ProblemStatistics, nil
 }
 
-func GetRecentSubmissions(count int, problemsetName string) ([]Submission, error) {
+func GetRecentStatus(maxCount int, problemsetName string) ([]Submission, error) {
 	url := "https://codeforces.com/api/recentActions?"
-	if count > 0 {
-		url += fmt.Sprintf("count=%d", count)
+	if maxCount > 0 {
+		url += fmt.Sprintf("maxCount=%d", maxCount)
 	}
 	if problemsetName != "" {
 		if url[len(url)-1] != '?' {
@@ -271,13 +277,13 @@ func (user *User) GetBlogEntries() ([]BlogEntry, error) {
 	return blogEntries, nil
 }
 
-func (user *User) GetFriends(onlyOnline bool) ([]User, error) {
+func (user *User) GetFriends(onlyOnline bool) ([]string, error) {
 	resp, err := GetRequest(fmt.Sprintf("https://codeforces.com/api/user.friends?onlyOnline=%t&handle=%s", onlyOnline, user.Handle))
 	if err != nil {
 		return nil, err
 	}
 
-	friends := []User{}
+	friends := []string{}
 	if err = json.Unmarshal(resp, &friends); err != nil {
 		return nil, err
 	}
@@ -313,23 +319,27 @@ func GetUsersInfo(handles []string) ([]User, error) {
 	return users, nil
 }
 
-func GetRatedList(activeOnly, includeRetired bool, contestId int) ([]User, error) {
-	url := "https://codeforces.com/api/user.ratedList?"
-	if activeOnly {
-		url += "activeOnly=true"
+func (contest *Contest) GetRatedList(activeOnly, includeRetired bool) ([]User, error) {
+	url := fmt.Sprintf("https://codeforces.com/api/user.ratedList?activeOnly=%t&includeRetired=%t", activeOnly, includeRetired)
+	if contest.ID > 0 {
+		url += fmt.Sprintf("&contestId=%d", contest.ID)
 	}
-	if includeRetired {
-		if url[len(url)-1] != '?' {
-			url += "&"
-		}
-		url += "includeRetired=true"
+
+	resp, err := GetRequest(url)
+	if err != nil {
+		return nil, err
 	}
-	if contestId > 0 {
-		if url[len(url)-1] != '?' {
-			url += "&"
-		}
-		url += fmt.Sprintf("contestId=%d", contestId)
+
+	users := []User{}
+	if err = json.Unmarshal(resp, &users); err != nil {
+		return nil, err
 	}
+
+	return users, nil
+}
+
+func GetGlobalRatedList(activeOnly, includeRetired bool) ([]User, error) {
+	url := fmt.Sprintf("https://codeforces.com/api/user.ratedList?activeOnly=%t&includeRetired=%t", activeOnly, includeRetired)
 
 	resp, err := GetRequest(url)
 	if err != nil {
