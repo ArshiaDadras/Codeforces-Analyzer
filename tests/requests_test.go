@@ -9,6 +9,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var envLoadError error = nil
+
+func TestMain(m *testing.M) {
+	if err := godotenv.Load("../.env"); err != nil {
+		envLoadError = err
+	}
+
+	os.Exit(m.Run())
+}
+
 func TestGetComments(t *testing.T) {
 	blogEntry := codeforces.BlogEntry{ID: 62865}
 	comments, err := blogEntry.GetComments()
@@ -149,8 +159,8 @@ func TestGetBlogEntries(t *testing.T) {
 }
 
 func TestGetFriends(t *testing.T) {
-	if err := godotenv.Load("../.env"); err != nil {
-		t.Skip("Error loading .env file")
+	if envLoadError != nil {
+		t.Skipf(`Error loading .env file: "%v"`, envLoadError)
 		return
 	}
 	if os.Getenv("CF_HANDLE") == "" {
