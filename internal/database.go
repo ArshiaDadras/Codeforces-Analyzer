@@ -107,6 +107,24 @@ func SaveProblem(problem *codeforces.Problem) error {
 	return nil
 }
 
+func mergeTags(currentTags []string, newTags []string) []string {
+	for _, tag := range newTags {
+		found := false
+		for _, currentTag := range currentTags {
+			if tag == currentTag {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			currentTags = append(currentTags, tag)
+		}
+	}
+
+	return currentTags
+}
+
 func SaveReferencedProblem(referenced *codeforces.ReferencedProblem) error {
 	var referencedID int
 	var currentMarshaledTags []byte
@@ -127,21 +145,9 @@ func SaveReferencedProblem(referenced *codeforces.ReferencedProblem) error {
 			return err
 		}
 
-		for _, tag := range referenced.Tags {
-			found := false
-			for _, currentTag := range currentTags {
-				if tag == currentTag {
-					found = true
-					break
-				}
-			}
+		newTags := mergeTags(currentTags, referenced.Tags)
 
-			if !found {
-				currentTags = append(currentTags, tag)
-			}
-		}
-
-		marshaledTags, err := json.Marshal(currentTags)
+		marshaledTags, err := json.Marshal(newTags)
 		if err != nil {
 			return err
 		}

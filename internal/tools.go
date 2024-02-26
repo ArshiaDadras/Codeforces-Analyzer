@@ -34,8 +34,6 @@ func UpdateProblemsFromAPI() error {
 }
 
 func FindTagsForProblem(problemUrl string, content string) []string {
-	// TODO: Implement this function
-
 	return []string{time.Now().Format(time.StampNano)}
 }
 
