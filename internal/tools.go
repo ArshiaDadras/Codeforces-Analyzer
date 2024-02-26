@@ -1,81 +1,157 @@
 package internal
 
 import (
-	"encoding/json"
+	"database/sql"
+	"log"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/ArshiaDadras/Codeforces-Analyzer/internal/codeforces"
 )
 
-func UpdateProblemsFromAPI() {
-	InitDB()
+const CodeforcesUrl = `((http|https)://)?(www.)?codeforces\.com`
+const problemUrlRegex = CodeforcesUrl + `/(([A-Za-z/]+/problem/\d+/[A-Za-z\d]+)|(contest/\d+/problem/[A-Za-z\d]+)|(gym/\d+/problem/[A-Za-z\d]+))`
+const blogUrlRegex = CodeforcesUrl + `/blog/entry/(\d+)`
+
+func UpdateProblemsFromAPI() error {
+	log.Println("Updating problems from API...")
 
 	problems, problemStatistics, err := codeforces.GetProblems([]string{}, "")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	for i, problem := range problems {
-		marshaledTags, err := json.Marshal(problem.Tags)
-		if err != nil {
-			panic(err)
-		}
-
-		var problemID int
 		problem.SolvedCount = problemStatistics[i].SolvedCount
-		if err := db.QueryRow("SELECT id FROM problems WHERE contest_id = ? AND idx = ?", problem.ContestID, problem.Index).Scan(&problemID); err != nil {
-			if _, err = db.Exec("INSERT INTO problems (contest_id, problemset_name, idx, name, type, points, rating, tags, solved_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", problem.ContestID, problem.ProblemsetName, problem.Index, problem.Name, problem.Type, problem.Points, problem.Rating, marshaledTags, problem.SolvedCount); err != nil {
-				panic(err)
-			}
-		} else {
-			if _, err = db.Exec("UPDATE problems SET problemset_name = ?, name = ?, type = ?, points = ?, rating = ?, tags = ?, solved_count = ? WHERE contest_id = ? AND idx = ?", problem.ProblemsetName, problem.Name, problem.Type, problem.Points, problem.Rating, marshaledTags, problem.SolvedCount, problem.ContestID, problem.Index); err != nil {
-				panic(err)
-			}
+		if err := SaveProblem(problem); err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
-func CrawlBlogEntry(blogID int) {
-	InitDB()
+func FindTagsForProblem(problemUrl string, content string) []string {
+	// TODO: Implement this function
 
-	blog, err := codeforces.GetBlogEntry(blogID)
+	return []string{time.Now().Format(time.StampNano)}
+}
+
+func AnalyzeProblem(problemUrl string, blogID int, content string) error {
+	log.Println("Analyzing problem", problemUrl, "from API...")
+
+	data := strings.Split(problemUrl, "/")
+	data = data[len(data)-4:]
+	if data[0] == "gym" || data[0] == "contest" {
+		data[1], data[2] = data[2], data[1]
+	}
+	data = append(data[:1], data[2:]...)
+
+	problemID, err := strconv.Atoi(data[1])
 	if err != nil {
-		return
-	}
-	marshaledTags, err := json.Marshal(blog.Tags)
-	if err != nil {
-		panic(err)
+		return err
 	}
 
-	var lastModificationTime int
-	if err = db.QueryRow("SELECT modification_time FROM blog_entries WHERE id = ?", blog.ID).Scan(&lastModificationTime); err != nil {
-		lastModificationTime = 0
+	referenced := &codeforces.ReferencedProblem{
+		BlogID:      blogID,
+		ProblemType: data[0],
+		ProblemID:   problemID,
+		Index:       data[2],
+		Tags:        FindTagsForProblem(problemUrl, content),
 	}
 
-	if lastModificationTime > 0 {
-		if lastModificationTime >= blog.ModificationTimeSeconds {
-			return
-		}
+	return SaveReferencedProblem(referenced)
+}
 
-		if _, err = db.Exec("UPDATE blog_entries SET original_locale = ?, creation_time = ?, author_handle = ?, title = ?, content = ?, locale = ?, modification_time = ?, allow_view_history = ?, tags = ?, rating = ? WHERE id = ?", blog.OriginalLocale, blog.CreationTimeSeconds, blog.AuthorHandle, blog.Title, blog.Content, blog.Locale, blog.ModificationTimeSeconds, blog.AllowViewHistory, marshaledTags, blog.Rating, blog.ID); err != nil {
-			panic(err)
-		}
-	} else {
-		if _, err = db.Exec("INSERT INTO blog_entries (id, original_locale, creation_time, author_handle, title, content, locale, modification_time, allow_view_history, tags, rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", blog.ID, blog.OriginalLocale, blog.CreationTimeSeconds, blog.AuthorHandle, blog.Title, blog.Content, blog.Locale, blog.ModificationTimeSeconds, blog.AllowViewHistory, marshaledTags, blog.Rating); err != nil {
-			panic(err)
+func AnalyzeProblemsOnBlog(blog *codeforces.BlogEntry) []int {
+	r := regexp.MustCompile(problemUrlRegex)
+	for _, match := range r.FindAllStringSubmatch(blog.Content, -1) {
+		if err := AnalyzeProblem(match[0], blog.ID, blog.Content); err != nil {
+			continue
 		}
 	}
 
-	// TODO: Analyze current blog problems
-
-	r := regexp.MustCompile(`https://codeforces.com/blog/entry/(\d+)`)
-	matches := r.FindAllStringSubmatch(blog.Content, -1)
-	for _, match := range matches {
-		nextBlogID, err := strconv.Atoi(match[1])
+	blogIDs := make([]int, 0)
+	r = regexp.MustCompile(blogUrlRegex)
+	for _, match := range r.FindAllStringSubmatch(blog.Content, -1) {
+		blogID, err := strconv.Atoi(match[1])
 		if err != nil {
 			continue
 		}
-		CrawlBlogEntry(nextBlogID)
+		blogIDs = append(blogIDs, blogID)
 	}
+
+	return blogIDs
+}
+
+func AnalyzeProblemsOnComments(blog *codeforces.BlogEntry) []int {
+	r := regexp.MustCompile(problemUrlRegex)
+	for _, comment := range blog.Comments {
+		for _, match := range r.FindAllStringSubmatch(comment.Text, -1) {
+			if err := AnalyzeProblem(match[0], blog.ID, blog.Content+`<div class="comment">`+comment.Text+`</div>`); err != nil {
+				continue
+			}
+		}
+	}
+
+	blogIDs := make([]int, 0)
+	r = regexp.MustCompile(blogUrlRegex)
+	for _, comment := range blog.Comments {
+		for _, match := range r.FindAllStringSubmatch(comment.Text, -1) {
+			blogID, err := strconv.Atoi(match[1])
+			if err != nil {
+				continue
+			}
+			blogIDs = append(blogIDs, blogID)
+		}
+	}
+
+	return blogIDs
+}
+
+func CrawlBlogEntry(blogID int) error {
+	log.Println("Crawling blog entry", blogID, "from API...")
+
+	blog, err := codeforces.GetBlogEntry(blogID)
+	if err != nil {
+		return err
+	}
+	lastVersion, err := GetBlogEntry(blogID)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+
+	nextBlogs := make([]int, 0)
+	if lastVersion == nil || lastVersion.ModificationTimeSeconds < blog.ModificationTimeSeconds {
+		nextBlogs = AnalyzeProblemsOnBlog(blog)
+	}
+	if lastVersion == nil || len(lastVersion.Comments) < len(blog.Comments) {
+		nextBlogs = append(nextBlogs, AnalyzeProblemsOnComments(blog)...)
+	}
+
+	if err := SaveBlogEntry(blog); err != nil {
+		return err
+	}
+
+	for _, nextBlogID := range nextBlogs {
+		err := CrawlBlogEntry(nextBlogID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func CrawlBlogEntryFromAPI(blogID int) error {
+	if err := UpdateProblemsFromAPI(); err != nil {
+		return err
+	}
+	if err := CrawlBlogEntry(blogID); err != nil {
+		return err
+	}
+
+	return nil
 }
