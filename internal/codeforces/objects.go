@@ -23,17 +23,18 @@ type User struct {
 }
 
 type BlogEntry struct {
-	ID                      int      `json:"id"`
-	OriginalLocale          string   `json:"originalLocale"`
-	CreationTimeSeconds     int      `json:"creationTimeSeconds"`
-	AuthorHandle            string   `json:"authorHandle"`
-	Title                   string   `json:"title"`
-	Content                 string   `json:"content"`
-	Locale                  string   `json:"locale"`
-	ModificationTimeSeconds int      `json:"modificationTimeSeconds"`
-	AllowViewHistory        bool     `json:"allowViewHistory"`
-	Tags                    []string `json:"tags"`
-	Rating                  int      `json:"rating"`
+	ID                      int       `json:"id"`
+	OriginalLocale          string    `json:"originalLocale"`
+	CreationTimeSeconds     int       `json:"creationTimeSeconds"`
+	AuthorHandle            string    `json:"authorHandle"`
+	Title                   string    `json:"title"`
+	Content                 string    `json:"content"`
+	Locale                  string    `json:"locale"`
+	ModificationTimeSeconds int       `json:"modificationTimeSeconds"`
+	AllowViewHistory        bool      `json:"allowViewHistory"`
+	Tags                    []string  `json:"tags"`
+	Rating                  int       `json:"rating"`
+	Comments                []Comment `json:"comments"`
 }
 
 type Comment struct {
@@ -170,4 +171,12 @@ type Standings struct {
 	Contest  Contest       `json:"contest"`
 	Problems []Problem     `json:"problems"`
 	Rows     []RanklistRow `json:"rows"`
+}
+
+type ReferencedProblem struct {
+	BlogID      int      `json:"blogId"`
+	ProblemType string   `json:"problemType"`
+	ProblemID   int      `json:"problemId"`
+	Index       string   `json:"index"`
+	Tags        []string `json:"tags"`
 }
