@@ -116,6 +116,10 @@ func CrawlBlogEntry(blogID int) error {
 	if err != nil {
 		return err
 	}
+	if strings.Contains(strings.ToLower(blog.Title), "editorial") {
+		log.Println("Editorial found in blog", blogID, "from API...")
+		return nil
+	}
 	lastVersion, err := GetBlogEntry(blogID)
 	if err != nil && err != sql.ErrNoRows {
 		return err
