@@ -19,19 +19,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestGetComments(t *testing.T) {
-	blogEntry := codeforces.BlogEntry{ID: 62865}
-	comments, err := blogEntry.GetComments()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(comments) < 123 {
-		t.Error("Invalid number of comments")
-	}
-}
-
-func TestGetView(t *testing.T) {
+func TestGetBlogEntry(t *testing.T) {
 	blogEntry, err := codeforces.GetBlogEntry(62865)
 	if err != nil {
 		t.Fatal(err)
@@ -39,6 +27,9 @@ func TestGetView(t *testing.T) {
 
 	if blogEntry.ID != 62865 {
 		t.Error("BlogEntry ID mismatch")
+	}
+	if len(blogEntry.Comments) < 123 {
+		t.Error("Invalid number of comments")
 	}
 }
 
