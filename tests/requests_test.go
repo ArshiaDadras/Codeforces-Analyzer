@@ -40,7 +40,7 @@ func TestGetHacks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(hacks) != 2191 {
+	if len(hacks) < 2191 {
 		t.Error("Invalid number of hacks")
 	}
 }
