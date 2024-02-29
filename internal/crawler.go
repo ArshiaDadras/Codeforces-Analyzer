@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ArshiaDadras/Codeforces-Analyzer/internal/codeforces"
 )
@@ -34,11 +33,11 @@ func UpdateProblemsFromAPI() error {
 }
 
 func FindTagsForProblem(problemUrl string, content string) []string {
-	return []string{time.Now().Format(time.StampNano)}
+	return []string{}
 }
 
 func AnalyzeProblem(problemUrl string, blogID int, content string) error {
-	log.Println("Analyzing problem", problemUrl, "from API...")
+	log.Printf("Analyzing problem %s...\n", problemUrl)
 
 	data := strings.Split(problemUrl, "/")
 	data = data[len(data)-4:]
@@ -74,7 +73,7 @@ func AnalyzeProblemsOnBlog(blog *codeforces.BlogEntry) []int {
 	blogIDs := make([]int, 0)
 	r = regexp.MustCompile(blogUrlRegex)
 	for _, match := range r.FindAllStringSubmatch(blog.Content, -1) {
-		blogID, err := strconv.Atoi(match[1])
+		blogID, err := strconv.Atoi(match[len(match)-1])
 		if err != nil {
 			continue
 		}
@@ -98,7 +97,7 @@ func AnalyzeProblemsOnComments(blog *codeforces.BlogEntry) []int {
 	r = regexp.MustCompile(blogUrlRegex)
 	for _, comment := range blog.Comments {
 		for _, match := range r.FindAllStringSubmatch(comment.Text, -1) {
-			blogID, err := strconv.Atoi(match[1])
+			blogID, err := strconv.Atoi(match[len(match)-1])
 			if err != nil {
 				continue
 			}
@@ -110,14 +109,14 @@ func AnalyzeProblemsOnComments(blog *codeforces.BlogEntry) []int {
 }
 
 func CrawlBlogEntry(blogID int) error {
-	log.Println("Crawling blog entry", blogID, "from API...")
+	log.Printf("Crawling blog %d...\n", blogID)
 
 	blog, err := codeforces.GetBlogEntry(blogID)
 	if err != nil {
 		return err
 	}
 	if strings.Contains(strings.ToLower(blog.Title), "editorial") {
-		log.Println("Editorial found in blog", blogID, "from API...")
+		log.Printf("Skipping blog %d because it's an editorial...\n", blogID)
 		return nil
 	}
 	lastVersion, err := GetBlogEntry(blogID)
@@ -138,21 +137,14 @@ func CrawlBlogEntry(blogID int) error {
 	}
 
 	for _, nextBlogID := range nextBlogs {
+		if nextBlogID == blogID {
+			continue
+		}
+
 		err := CrawlBlogEntry(nextBlogID)
 		if err != nil {
-			return err
+			log.Printf("Error crawling blog %d: %s\n", nextBlogID, err)
 		}
-	}
-
-	return nil
-}
-
-func CrawlBlogEntryFromAPI(blogID int) error {
-	if err := UpdateProblemsFromAPI(); err != nil {
-		return err
-	}
-	if err := CrawlBlogEntry(blogID); err != nil {
-		return err
 	}
 
 	return nil

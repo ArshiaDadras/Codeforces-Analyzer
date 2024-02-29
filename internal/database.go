@@ -33,7 +33,8 @@ func InitDB() {
 			modification_time INTEGER,
 			allow_view_history BOOLEAN,
 			tags JSON,
-			rating INTEGER NULL
+			rating INTEGER NULL,
+			comments JSON
 		)`,
 		`CREATE TABLE IF NOT EXISTS problems (
 			contest_id INTEGER NULL,
@@ -82,8 +83,13 @@ func SaveBlogEntry(blog *codeforces.BlogEntry) error {
 		return err
 	}
 
-	if _, err = db.Exec("INSERT INTO blog_entries (id, original_locale, creation_time, author_handle, title, content, locale, modification_time, allow_view_history, tags, rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", blog.ID, blog.OriginalLocale, blog.CreationTimeSeconds, blog.AuthorHandle, blog.Title, blog.Content, blog.Locale, blog.ModificationTimeSeconds, blog.AllowViewHistory, marshaledTags, blog.Rating); err != nil {
-		_, err = db.Exec("UPDATE blog_entries SET original_locale = ?, creation_time = ?, author_handle = ?, title = ?, content = ?, locale = ?, modification_time = ?, allow_view_history = ?, tags = ?, rating = ? WHERE id = ?", blog.OriginalLocale, blog.CreationTimeSeconds, blog.AuthorHandle, blog.Title, blog.Content, blog.Locale, blog.ModificationTimeSeconds, blog.AllowViewHistory, marshaledTags, blog.Rating, blog.ID)
+	marshaledComments, err := json.Marshal(blog.Comments)
+	if err != nil {
+		return err
+	}
+
+	if _, err = db.Exec("INSERT INTO blog_entries (id, original_locale, creation_time, author_handle, title, content, locale, modification_time, allow_view_history, tags, rating, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", blog.ID, blog.OriginalLocale, blog.CreationTimeSeconds, blog.AuthorHandle, blog.Title, blog.Content, blog.Locale, blog.ModificationTimeSeconds, blog.AllowViewHistory, marshaledTags, blog.Rating, marshaledComments); err != nil {
+		_, err = db.Exec("UPDATE blog_entries SET original_locale = ?, creation_time = ?, author_handle = ?, title = ?, content = ?, locale = ?, modification_time = ?, allow_view_history = ?, tags = ?, rating = ?, comments = ? WHERE id = ?", blog.OriginalLocale, blog.CreationTimeSeconds, blog.AuthorHandle, blog.Title, blog.Content, blog.Locale, blog.ModificationTimeSeconds, blog.AllowViewHistory, marshaledTags, blog.Rating, marshaledComments, blog.ID)
 		if err != nil {
 			return err
 		}
@@ -162,12 +168,17 @@ func SaveReferencedProblem(referenced *codeforces.ReferencedProblem) error {
 
 func GetBlogEntry(blogID int) (*codeforces.BlogEntry, error) {
 	var marshaledTags []byte
+	var marshaledComments []byte
 	blog := new(codeforces.BlogEntry)
-	if err := db.QueryRow("SELECT original_locale, creation_time, author_handle, title, content, locale, modification_time, allow_view_history, tags, rating FROM blog_entries WHERE id = ?", blogID).Scan(&blog.OriginalLocale, &blog.CreationTimeSeconds, &blog.AuthorHandle, &blog.Title, &blog.Content, &blog.Locale, &blog.ModificationTimeSeconds, &blog.AllowViewHistory, &marshaledTags, &blog.Rating); err != nil {
+	if err := db.QueryRow("SELECT original_locale, creation_time, author_handle, title, content, locale, modification_time, allow_view_history, tags, rating, comments FROM blog_entries WHERE id = ?", blogID).Scan(&blog.OriginalLocale, &blog.CreationTimeSeconds, &blog.AuthorHandle, &blog.Title, &blog.Content, &blog.Locale, &blog.ModificationTimeSeconds, &blog.AllowViewHistory, &marshaledTags, &blog.Rating, &marshaledComments); err != nil {
 		return nil, err
 	}
 
 	if err := json.Unmarshal(marshaledTags, &blog.Tags); err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(marshaledComments, &blog.Comments); err != nil {
 		return nil, err
 	}
 
